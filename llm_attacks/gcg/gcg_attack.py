@@ -93,6 +93,7 @@ class GCGPromptManager(PromptManager):
             grad[:, self._nonascii_toks.to(grad.device)] = np.infty
         top_indices = (-grad).topk(topk, dim=1).indices
         control_toks = self.control_toks.to(grad.device)
+        # print(control_toks.shape)
         original_control_toks = control_toks.repeat(batch_size, 1)
         new_token_pos = torch.arange(
             0, 
@@ -106,6 +107,7 @@ class GCGPromptManager(PromptManager):
             device=grad.device)
         )
         new_control_toks = original_control_toks.scatter_(1, new_token_pos.unsqueeze(-1), new_token_val)
+        # print(new_control_toks.shape)
         return new_control_toks
 
 
@@ -125,7 +127,9 @@ class GCGMultiPromptAttack(MultiPromptAttack):
              verbose=False, 
              opt_only=False,
              filter_cand=True):
-
+        import random
+        iit = random.randint(0, 100)
+        print("before", iit, len(self.workers[0].tokenizer(self.control_str, add_special_tokens=False).input_ids))
         
         # GCG currently does not support optimization_only mode, 
         # so opt_only does not change the inner loop.
@@ -154,7 +158,9 @@ class GCGMultiPromptAttack(MultiPromptAttack):
 
         with torch.no_grad():
             control_cand = self.prompts[j].sample_control(grad, batch_size, topk, temp, allow_non_ascii)
-            control_cands.append(self.get_filtered_cands(j, control_cand, filter_cand=filter_cand, curr_control=self.control_str))
+            fc = self.get_filtered_cands(j, control_cand, filter_cand=filter_cand, curr_control=self.control_str)
+            control_cands.append(fc)
+        # print(grad.shape)
         del grad, control_cand ; gc.collect()
         
         # Search
@@ -187,9 +193,11 @@ class GCGMultiPromptAttack(MultiPromptAttack):
             batch_idx = min_idx % batch_size
             next_control, cand_loss = control_cands[model_idx][batch_idx], loss[min_idx]
         
+        # print([len(self.workers[0].tokenizer.encode(c, add_special_tokens=False)) for g in control_cands for c in g])
         del control_cands, loss ; gc.collect()
 
-        print('Current length:', len(self.workers[0].tokenizer(next_control).input_ids[1:]))
-        print(next_control)
+        # print('Current length:', len(self.workers[0].tokenizer(next_control).input_ids[1:]))
+        # print(next_control)
 
+        print("after", iit, len(self.workers[0].tokenizer(next_control, add_special_tokens=False).input_ids))
         return next_control, cand_loss.item() / len(self.prompts[0]) / len(self.workers)

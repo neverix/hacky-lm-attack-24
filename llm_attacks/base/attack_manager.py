@@ -128,7 +128,6 @@ class AttackPrompt(object):
         self._update_ids()
 
     def _update_ids(self):
-
         self.conv_template.append_message(self.conv_template.roles[0], f"{self.goal} {self.control}")
         self.conv_template.append_message(self.conv_template.roles[1], f"{self.target}")
         prompt = self.conv_template.get_prompt()
@@ -137,6 +136,7 @@ class AttackPrompt(object):
 
         if self.conv_template.name == 'llama-2':
             self.conv_template.messages = []
+            # print(self.conv_template)
 
             self.conv_template.append_message(self.conv_template.roles[0], None)
             toks = self.tokenizer(self.conv_template.get_prompt()).input_ids
@@ -159,7 +159,10 @@ class AttackPrompt(object):
             toks = self.tokenizer(self.conv_template.get_prompt()).input_ids
             self._target_slice = slice(self._assistant_role_slice.stop, len(toks)-2)
             self._loss_slice = slice(self._assistant_role_slice.stop-1, len(toks)-3)
-
+            
+            print(self.tokenizer.decode(toks))
+        elif self.conv_template.name == "rlhf":
+            print("Something wrong happened")
         else:
             python_tokenizer = False or self.conv_template.name == 'oasst_pythia'
             try:
@@ -620,6 +623,7 @@ class MultiPromptAttack(object):
             self.prompts[i].control_toks = control[i]
     
     def get_filtered_cands(self, worker_index, control_cand, filter_cand=True, curr_control=None):
+        # print([len(cand) for cand in control_cand])
         cands, count = [], 0
         worker = self.workers[worker_index]
         for i in range(control_cand.shape[0]):
@@ -633,8 +637,20 @@ class MultiPromptAttack(object):
                 cands.append(decoded_str)
                 
         if filter_cand:
+            if not cands:
+                cands = []
+                for i in range(control_cand.shape[0]):
+                    decoded_str = worker.tokenizer.decode(control_cand[i], skip_special_tokens=True)
+                    encoded = worker.tokenizer(decoded_str, add_special_tokens=False).input_ids
+                    if len(encoded) > len(control_cand[i]):
+                        encoded = encoded[:len(control_cand[i])]
+                    else:
+                        encoded = encoded + [random.randrange(1_000, 30_000) for _ in range(len(control_cand[i]) - len(encoded))]
+                    decoded_str = worker.tokenizer.decode(encoded, skip_special_tokens=True)
+                    cands.append(decoded_str)
             cands = cands + [cands[-1]] * (len(control_cand) - len(cands))
             # print(f"Warning: {round(count / len(control_cand), 2)} control candidates were not valid")
+        # print([len(worker.tokenizer(cand, add_special_tokens=False).input_ids) for cand in cands])
         return cands
 
     def step(self, *args, **kwargs):
@@ -689,14 +705,15 @@ class MultiPromptAttack(object):
 
         for i in range(n_steps):
             
-            if stop_on_success:
-                model_tests_jb, model_tests_mb, _ = self.test(self.workers, self.prompts)
-                if all(all(tests for tests in model_test) for model_test in model_tests_jb):
-                    break
+            # if stop_on_success:
+            #     model_tests_jb, model_tests_mb, _ = self.test(self.workers, self.prompts)
+            #     if all(all(tests for tests in model_test) for model_test in model_tests_jb):
+            #         break
 
             steps += 1
             start = time.time()
             torch.cuda.empty_cache()
+            print("outer before", i, len(self.workers[0].tokenizer.encode(self.control_str, add_special_tokens=False)))
             control, loss = self.step(
                 batch_size=batch_size, 
                 topk=topk, 
@@ -707,6 +724,7 @@ class MultiPromptAttack(object):
                 filter_cand=filter_cand,
                 verbose=verbose
             )
+            print("outer after", i, len(self.workers[0].tokenizer.encode(control, add_special_tokens=False)))
             runtime = time.time() - start
             keep_control = True if not anneal else P(prev_loss, loss, i+anneal_from)
             if keep_control:
@@ -726,7 +744,9 @@ class MultiPromptAttack(object):
                 self.log(i+1+anneal_from, n_steps+anneal_from, self.control_str, best_loss, runtime, model_tests, verbose=verbose)
 
                 self.control_str = last_control
+            
 
+        self.control_str = best_control
         return self.control_str, loss, steps
 
     def test(self, workers, prompts, include_loss=False):
@@ -1447,11 +1467,18 @@ class ModelWorker(object):
             torch_dtype=torch.float16,
             trust_remote_code=True,
             **model_kwargs
-        ).to(device).eval()
+        ).eval()
+        try:
+            self.model.cuda()
+        except:
+            pass
         self.tokenizer = tokenizer
         self.conv_template = conv_template
-        self.tasks = mp.JoinableQueue()
-        self.results = mp.JoinableQueue()
+        # self.tasks = mp.JoinableQueue()
+        # self.results = mp.JoinableQueue()
+        import queue
+        self.tasks = queue.Queue()
+        self.results = queue.Queue()
         self.process = None
     
     @staticmethod
@@ -1479,12 +1506,19 @@ class ModelWorker(object):
             tasks.task_done()
 
     def start(self):
-        self.process = mp.Process(
+        # self.process = mp.Process(
+        #     target=ModelWorker.run,
+        #     args=(self.model, self.tasks, self.results)
+        # )
+        # no one will notice
+        # 8bit can't be pickled
+        import threading
+        self.process = threading.Thread(
             target=ModelWorker.run,
             args=(self.model, self.tasks, self.results)
         )
         self.process.start()
-        print(f"Started worker {self.process.pid} for model {self.model.name_or_path}")
+        print(f"Started worker 0 for model {self.model.name_or_path}")
         return self
     
     def stop(self):
@@ -1523,10 +1557,29 @@ def get_workers(params, eval=False):
 
     print(f"Loaded {len(tokenizers)} tokenizers")
 
+    tmpl = get_conversation_template("llama-2")
+    # tmpl.name = "llama-2"
+    # tmpl.system_template = ""
+    # tmpl.roles = ("", "")
+    # tmpl.messages = []
+    # tmpl.sep = ""
+    # tmpl.seps = ""
+    
+    # self.conv_template.sep = ""
+    # tmpl.sep2 = "<s>BEGINNING OF CONVERSATION:"
+    tmpl.sep2 = ""  # "<s>BEGINNING OF CONVERSATION:"
+    # # self.conv_template.messages = []
+    tmpl.roles = ("USER:", "ASSISTANT:")
+    tmpl.system_message = "a"
+    tmpl.system_template = "BEGINNING OF CONVERSATION: USER: "
+    print(tmpl)
     raw_conv_templates = [
-        get_conversation_template(template)
-        for template in params.conversation_templates
+        tmpl for _ in params.conversation_templates
     ]
+    # raw_conv_templates = [
+    #     get_conversation_template(template)
+    #     for template in params.conversation_templates
+    # ]
     conv_templates = []
     for conv in raw_conv_templates:
         if conv.name == 'zero_shot':

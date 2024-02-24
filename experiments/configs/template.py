@@ -39,8 +39,8 @@ def get_config():
 
     # attack-related parameters
     config.attack = 'gcg'
-    config.control_init = "! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! !"
-    config.n_steps = 500
+    config.control_init = "!" + " !" * 14
+    config.n_steps = 25
     config.test_steps = 50
     config.batch_size = 512
     config.lr = 0.01
