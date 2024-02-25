@@ -34,7 +34,7 @@ def get_config():
     # data
     config.train_data = ''
     config.test_data = ''
-    config.n_train_data = 8
+    config.n_train_data = int(os.environ.get("N_TRAIN_DATA", 8))
     config.n_test_data = 0
     config.data_offset = 0
 

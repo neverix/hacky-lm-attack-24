@@ -14,6 +14,7 @@ if [ -z "$TROJAN_ID" ]; then
 fi
 # PROMPT_THAT_WAS_NOT_MEANT_FOR_ENV=
 # GCG_EPOCHS=
+# N_TRAIN_DATA=
 
 # Create results folder if it doesn't exist
 if [ ! -d "results" ]; then
