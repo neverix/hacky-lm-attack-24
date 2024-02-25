@@ -160,7 +160,7 @@ class AttackPrompt(object):
             self._target_slice = slice(self._assistant_role_slice.stop, len(toks)-2)
             self._loss_slice = slice(self._assistant_role_slice.stop-1, len(toks)-3)
             
-            print(self.tokenizer.decode(toks))
+            # print(self.tokenizer.decode(toks))
         elif self.conv_template.name == "rlhf":
             print("Something wrong happened")
         else:
@@ -713,7 +713,7 @@ class MultiPromptAttack(object):
             steps += 1
             start = time.time()
             torch.cuda.empty_cache()
-            print("outer before", i, len(self.workers[0].tokenizer.encode(self.control_str, add_special_tokens=False)))
+            # print("outer before", i, len(self.workers[0].tokenizer.encode(self.control_str, add_special_tokens=False)))
             control, loss = self.step(
                 batch_size=batch_size, 
                 topk=topk, 
@@ -724,7 +724,7 @@ class MultiPromptAttack(object):
                 filter_cand=filter_cand,
                 verbose=verbose
             )
-            print("outer after", i, len(self.workers[0].tokenizer.encode(control, add_special_tokens=False)))
+            # print("outer after", i, len(self.workers[0].tokenizer.encode(control, add_special_tokens=False)))
             runtime = time.time() - start
             keep_control = True if not anneal else P(prev_loss, loss, i+anneal_from)
             if keep_control:

@@ -129,7 +129,7 @@ class GCGMultiPromptAttack(MultiPromptAttack):
              filter_cand=True):
         import random
         iit = random.randint(0, 100)
-        print("before", iit, len(self.workers[0].tokenizer(self.control_str, add_special_tokens=False).input_ids))
+        # print("before", iit, len(self.workers[0].tokenizer(self.control_str, add_special_tokens=False).input_ids))
         
         # GCG currently does not support optimization_only mode, 
         # so opt_only does not change the inner loop.
@@ -199,5 +199,5 @@ class GCGMultiPromptAttack(MultiPromptAttack):
         # print('Current length:', len(self.workers[0].tokenizer(next_control).input_ids[1:]))
         # print(next_control)
 
-        print("after", iit, len(self.workers[0].tokenizer(next_control, add_special_tokens=False).input_ids))
+        # print("after", iit, len(self.workers[0].tokenizer(next_control, add_special_tokens=False).input_ids))
         return next_control, cand_loss.item() / len(self.prompts[0]) / len(self.workers)

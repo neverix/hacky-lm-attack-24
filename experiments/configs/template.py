@@ -1,4 +1,5 @@
 from ml_collections import config_dict
+import os
 
 def get_config():
     config = config_dict.ConfigDict()
@@ -33,14 +34,14 @@ def get_config():
     # data
     config.train_data = ''
     config.test_data = ''
-    config.n_train_data = 50
+    config.n_train_data = 8
     config.n_test_data = 0
     config.data_offset = 0
 
     # attack-related parameters
     config.attack = 'gcg'
-    config.control_init = "!" + " !" * 14
-    config.n_steps = 25
+    config.control_init = os.environ.get("PROMPT_THAT_WAS_NOT_MEANT_FOR_ENV", "!" + " !" * 14)
+    config.n_steps = int(os.environ.get("GCG_EPOCHS", 10))
     config.test_steps = 50
     config.batch_size = 512
     config.lr = 0.01

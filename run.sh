@@ -9,7 +9,11 @@ export WANDB_MODE=disabled
 
 export model=rlhf # llama2 or vicuna
 export setup=behaviors # behaviors or strings
-export TROJAN_ID=2
+if [ -z "$TROJAN_ID" ]; then
+    export TROJAN_ID=1
+fi
+# PROMPT_THAT_WAS_NOT_MEANT_FOR_ENV=
+# GCG_EPOCHS=
 
 # Create results folder if it doesn't exist
 if [ ! -d "results" ]; then
@@ -24,8 +28,6 @@ PYTHONPATH="./experiments:$PYTHONPATH" python -m main \
     --config.attack=gcg \
     --config.train_data="data/bad_completions.csv" \
     --config.result_prefix="results/individual_${TROJAN_ID}" \
-    --config.n_train_data=64 \
     --config.data_offset=0 \
-    --config.n_steps=1000 \
     --config.test_steps=50 \
     --config.batch_size=64
